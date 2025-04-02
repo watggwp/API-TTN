@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-time Sensor Data</title>
+    <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            text-align: center;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+            display: inline-block;
+            width: 90%;
+            max-width: 500px;
+        }
+        select {
+            width: 100%;
+            padding: 10px;
+            margin-top: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        #sensorData {
+            font-size: 22px;
+            font-weight: bold;
+            margin-top: 20px;
+            padding: 15px;
+            background: #008CBA;
+            color: white;
+            border-radius: 10px;
+            transition: 0.3s;
+        }
+        .chart-container {
+            margin-top: 20px;
+            width: 90%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🌱 Real-time Sensor Data</h1>
+    
+    <div class="container">
+        <label for="greenhouseSelect">Select Greenhouse:</label>
+        <select id="greenhouseSelect">
+            <option value="">-- Select Greenhouse --</option>
+        </select>
+        
+        <p id="sensorData">⏳ Waiting for data...</p>
+    </div>
+
+    <div class="chart-container">
+        <canvas id="sensorChart"></canvas>
+    </div>
+
+    <script>
+        const socket = io();
+        const sensorData = document.getElementById("sensorData");
+        const greenhouseSelect = document.getElementById("greenhouseSelect");
+        let selectedGreenhouse = "";
+        
+        const ctx = document.getElementById("sensorChart").getContext("2d");
+        const sensorChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: 'Temperature (°C)',
+                        borderColor: 'red',
+                        data: [],
+                        fill: false
+                    },
+                    {
+                        label: 'Humidity (%)',
+                        borderColor: 'blue',
+                        data: [],
+                        fill: false
+                    },
+                    {
+                        label: 'Light',
+                        borderColor: 'yellow',
+                        data: [],
+                        fill: false
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    x: { display: true },
+                    y: { display: true }
+                }
+            }
+        });
+        
+        function updateSensorData(data) {
+            console.log("📡 Received real-time data:", data);
+            if (parseInt(data.greenhouse_id) === parseInt(selectedGreenhouse)) {
+                sensorData.innerHTML = `🌡️ Temp: ${data.temperature}°C <br> 💧 Humidity: ${data.humidity}% <br> 💡 Light: ${data.light}`;
+                sensorData.style.background = "#28a745";
+                
+                // อัปเดตกราฟ
+                const now = new Date().toLocaleTimeString();
+                if (sensorChart.data.labels.length > 10) {
+                    sensorChart.data.labels.shift();
+                    sensorChart.data.datasets.forEach(dataset => dataset.data.shift());
+                }
+                sensorChart.data.labels.push(now);
+                sensorChart.data.datasets[0].data.push(data.temperature);
+                sensorChart.data.datasets[1].data.push(data.humidity);
+                sensorChart.data.datasets[2].data.push(data.light);
+                sensorChart.update();
+            }
+        }
+        
+        function addGreenhouseOption(greenhouse_id) {
+            if (!document.querySelector(`option[value="${greenhouse_id}"]`)) {
+                console.log("➕ Adding greenhouse option:", greenhouse_id);
+                let option = document.createElement("option");
+                option.value = greenhouse_id;
+                option.textContent = `Greenhouse ${greenhouse_id}`;
+                greenhouseSelect.appendChild(option);
+            }
+        }
+        
+        socket.on("greenhouseList", (greenhouseList) => {
+            console.log("📜 Received greenhouse list:", greenhouseList);
+            greenhouseList.forEach(addGreenhouseOption);
+        });
+        
+        socket.on("newData", (data) => {
+            console.log("📡 New sensor data received:", data);
+            addGreenhouseOption(data.greenhouse_id);
+            updateSensorData(data);
+        });
+        
+        greenhouseSelect.addEventListener("change", (e) => {
+            selectedGreenhouse = e.target.value;
+            console.log("🏡 Selected Greenhouse:", selectedGreenhouse);
+            sensorData.innerHTML = "⏳ Waiting for new data...";
+            sensorData.style.background = "#008CBA";
+            
+            // ดึงข้อมูลย้อนหลังจากเซิร์ฟเวอร์
+            if (selectedGreenhouse) {
+                socket.emit("requestHistory", selectedGreenhouse);
+            }
+        });
+
+        // รับข้อมูลย้อนหลัง
+        socket.on("historyData", (history) => {
+            console.log("📜 Received history data:", history);
+            sensorChart.data.labels = history.map(entry => entry.timestamp);
+            sensorChart.data.datasets[0].data = history.map(entry => entry.temperature);
+            sensorChart.data.datasets[1].data = history.map(entry => entry.humidity);
+            sensorChart.data.datasets[2].data = history.map(entry => entry.light);
+            sensorChart.update();
+        });
+        
+        socket.on("connect", () => console.log("🟢 Connected to server"));
+        socket.on("disconnect", () => console.log("🔴 Disconnected from server"));
+    </script>
+</body>
+</html>
