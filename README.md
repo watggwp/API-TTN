@@ -11,7 +11,7 @@
 
 - [Node.js](https://nodejs.org) (แนะนำให้ใช้เวอร์ชัน 14.x หรือสูงกว่า)
 - [MySQL](https://www.mysql.com/) ฐานข้อมูล
-- [XAMPP](https://www.apachefriends.org/download.html) ตัวจำลอง run server กับ phpmyadmin
+- [XAMPP](https://www.apachefriends.org/download.html) ตัวจำลอง MySQL
 - ไฟล์ `.env` สำหรับการตั้งค่าคอนฟิก
 
 ## การติดตั้ง
